@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Inbox Auto-Cleaner
 
 A FastAPI application that searches email accounts and can automatically delete emails after a specified period.
@@ -49,3 +50,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 - Always test in dry-run mode first
 - Keep deletion logs for audit trail
 - Deleted emails cannot be recovered
+=======
+# inbox-auto-cleaner
+FastAPI application for searching emails and auto-deleting old emails from multiple email accounts
+>>>>>>> e8b7562641c1da2ffdf13a7efe50a435597e24cc

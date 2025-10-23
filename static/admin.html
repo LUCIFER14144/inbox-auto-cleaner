@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Delete Admin - Inbox Auto-Cleaner</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #ff6b6b;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 0.95em;
+        }
+        
+        .warning {
+            background: #ff6b6b;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.3);
+        }
+        
+        .warning h2 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+        
+        .warning ul {
+            list-style: none;
+            margin-left: 20px;
+        }
+        
+        .warning li:before {
+            content: "⚠ ";
+            margin-right: 10px;
+        }
+        
+        .danger-zone {
+            background: white;
+            border: 4px solid #ff6b6b;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(255, 107, 107, 0.2);
+        }
+        
+        .danger-zone h2 {
+            color: #ff6b6b;
+            margin-bottom: 25px;
+            font-size: 1.5em;
+            text-align: center;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section h3 {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="password"]:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .btn-danger:hover {
+            background: #ee5a52;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+        
+        .btn-success {
+            background: #51cf66;
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .btn-success:hover {
+            background: #40c057;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(81, 207, 102, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .status-message {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .log-section {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .log-entry {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #f9f9f9;
+            font-size: 0.9em;
+        }
+        
+        .log-entry strong {
+            color: #333;
+        }
+        
+        .log-entry p {
+            margin: 5px 0;
+        }
+        
+        .icon {
+            margin-right: 8px;
+        }
+        
+        .confirmation-required {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-trash-alt icon"></i>Email Auto-Delete Admin</h1>
+            <p>Manage automatic email deletion settings</p>
+            <a href="/" style="color: #667eea; text-decoration: none; margin-top: 10px; display: inline-block;">
+                <i class="fas fa-arrow-left"></i> Back to Search
+            </a>
+        </div>
+
+        <!-- Warning -->
+        <div class="warning">
+            <h2><i class="fas fa-exclamation-triangle icon"></i>CRITICAL WARNING</h2>
+            <p>This tool will PERMANENTLY DELETE emails from ALL connected accounts.</p>
+            <ul>
+                <li>Deleted emails CANNOT be recovered</li>
+                <li>Use with extreme caution</li>
+                <li>Backup important emails first</li>
+                <li>Requires confirmation codes</li>
+            </ul>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="danger-zone">
+            <h2><i class="fas fa-fire icon"></i>DANGER ZONE</h2>
+
+            <!-- Step 1: Enable Deletion -->
+            <div class="section">
+                <h3><i class="fas fa-key icon"></i>Step 1: Enable Deletion Mode</h3>
+                <p style="color: #666; margin-bottom: 15px;">
+                    Enter the confirmation code to enable actual deletion:<br>
+                    <strong style="font-family: monospace; background: #f0f0f0; padding: 5px 10px; border-radius: 3px;">
+                        DELETE_EMAILS_PERMANENTLY_2024
+                    </strong>
+                </p>
+                <div class="form-group">
+                    <label for="confirmationCode">Confirmation Code:</label>
+                    <input type="password" id="confirmationCode" placeholder="Enter confirmation code">
+                </div>
+                <div class="button-group">
+                    <button class="btn-danger" onclick="enableDeletion()">
+                        <i class="fas fa-lock-open icon"></i>Enable Deletion Mode
+                    </button>
+                </div>
+                <div id="status-enable" class="status-message"></div>
+            </div>
+
+            <!-- Step 2: Configure -->
+            <div class="section">
+                <h3><i class="fas fa-sliders-h icon"></i>Step 2: Configure Auto-Delete Settings</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label for="intervalMinutes">Check every (minutes):</label>
+                        <input type="number" id="intervalMinutes" value="60" min="1" max="1440">
+                    </div>
+                    <div class="form-group">
+                        <label for="deleteAfterMinutes">Delete emails older than (minutes):</label>
+                        <input type="number" id="deleteAfterMinutes" value="60" min="1" max="10080">
+                    </div>
+                </div>
+                <div class="confirmation-required">
+                    <i class="fas fa-info-circle icon"></i>
+                    Note: Must complete Step 1 before starting auto-delete
+                </div>
+            </div>
+
+            <!-- Step 3: Control -->
+            <div class="section">
+                <h3><i class="fas fa-play-circle icon"></i>Step 3: Control Auto-Delete</h3>
+                <div class="button-group">
+                    <button class="btn-danger" onclick="startAutoDelete()">
+                        <i class="fas fa-play icon"></i>START AUTO-DELETE
+                    </button>
+                    <button class="btn-success" onclick="stopAutoDelete()">
+                        <i class="fas fa-stop icon"></i>STOP AUTO-DELETE
+                    </button>
+                </div>
+                <div id="status-control" class="status-message"></div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="log-section">
+            <h2><i class="fas fa-list icon"></i>Deletion Log</h2>
+            <button class="btn-secondary" onclick="loadDeletionLog()" style="margin: 15px 0;">
+                <i class="fas fa-sync-alt icon"></i>Load Deletion Log
+            </button>
+            <div id="deletionLog"></div>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, isError = false, elementId = 'status-enable') {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.className = `status-message ${isError ? 'error' : 'success'}`;
+            statusDiv.textContent = message;
+        }
+
+        async function enableDeletion() {
+            const code = document.getElementById('confirmationCode').value;
+            
+            if (!code) {
+                showStatus('Please enter confirmation code', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/enable-deletion', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmation_code: code })
+                });
+                
+                const result = await response.json();
+                showStatus(result.message, result.status === 'error');
+            } catch (error) {
+                showStatus('Error: ' + error.message, true);
+            }
+        }
+
+        async function startAutoDelete() {
+            const intervalMinutes = document.getElementById('intervalMinutes').value;
+            const deleteAfterMinutes = document.getElementById('deleteAfterMinutes').value;
+            
+            const confirmMsg = `⚠️ Are you ABSOLUTELY SURE?\n\nThis will DELETE emails older than ${deleteAfterMinutes} minutes\nfrom ALL connected accounts\nevery ${intervalMinutes} minutes!\n\nType "YES DELETE" to confirm:`;
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            const confirmation = prompt('Type "YES DELETE" to confirm:');
+            if (confirmation !== 'YES DELETE') {
+                showStatus('Auto-deletion cancelled', false, 'status-control');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/start-auto-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        interval_minutes: parseInt(intervalMinutes),
+                        delete_after_minutes: parseInt(deleteAfterMinutes)
+                    })
+                });
+                
+                const result = await response.json();
+                showStatus(result.message, result.status === 'error', 'status-control');
+            } catch (error) {
+                showStatus('Error: ' + error.message, true, 'status-control');
+            }
+        }
+
+        async function stopAutoDelete() {
+            if (!confirm('Stop auto-deletion process?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/stop-auto-delete', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                showStatus(result.message, false, 'status-control');
+            } catch (error) {
+                showStatus('Error: ' + error.message, true, 'status-control');
+            }
+        }
+
+        async function loadDeletionLog() {
+            try {
+                const response = await fetch('/admin/deletion-log');
+                const result = await response.json();
+                
+                const logDiv = document.getElementById('deletionLog');
+                if (result.log.length === 0) {
+                    logDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No deletions recorded yet.</p>';
+                } else {
+                    logDiv.innerHTML = result.log.map(entry => `
+                        <div class="log-entry">
+                            <strong>📧 Account:</strong> ${entry.account}<br>
+                            <strong>📁 Folder:</strong> ${entry.folder}<br>
+                            <strong>📝 Subject:</strong> ${entry.subject}<br>
+                            <strong>👤 Sender:</strong> ${entry.sender}<br>
+                            <strong>📅 Date:</strong> ${entry.date}<br>
+                            <strong>🗑️ Deleted:</strong> ${entry.deleted_at}<br>
+                            <strong>⚙️ Mode:</strong> <span style="color: ${entry.mode === 'dry-run' ? '#007bff' : '#ff6b6b'};">${entry.mode}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                document.getElementById('deletionLog').innerHTML = `<div class="log-entry" style="color: red;">Error loading log: ${error.message}</div>`;
+            }
+        }
+
+        // Load logs on page load
+        loadDeletionLog();
+    </script>
+</body>
+</html>

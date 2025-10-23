@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inbox Auto-Cleaner - Email Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .animate-spin-slow {
+            animation: spin 2s linear infinite;
+        }
+        .folder-inbox { color: #10b981; }
+        .folder-spam { color: #ef4444; }
+        .folder-promotions { color: #f59e0b; }
+        .loading-dots {
+            animation: loadingDots 1.5s infinite;
+        }
+        @keyframes loadingDots {
+            0%, 20% { opacity: 0; }
+            50% { opacity: 1; }
+            80%, 100% { opacity: 0; }
+        }
+        .result-row {
+            transition: all 0.3s ease;
+        }
+        .result-row:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <i class="fas fa-envelope-open-text text-2xl text-blue-600 mr-3"></i>
+                    <h1 class="text-2xl font-bold text-gray-900">Inbox Auto-Cleaner</h1>
+                </div>
+                <div class="flex gap-4">
+                    <a href="/admin" class="text-sm text-blue-600 hover:text-blue-800 font-medium">Admin</a>
+                    <span id="account-count" class="text-sm text-gray-600">Loading accounts...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Search Form -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Search Email Delivery</h2>
+            <form id="search-form" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="sender-email" class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-at mr-1"></i>Sender Email (optional)
+                        </label>
+                        <input 
+                            type="email" 
+                            id="sender-email" 
+                            name="sender-email"
+                            placeholder="sender@example.com"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                        <div class="mt-1 text-sm text-gray-500">Enter email or subject below</div>
+                    </div>
+                    <div>
+                        <label for="subject" class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-heading mr-1"></i>Subject Line (optional)
+                        </label>
+                        <input 
+                            type="text" 
+                            id="subject" 
+                            name="subject"
+                            placeholder="Email subject..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                </div>
+                <div class="flex justify-center">
+                    <button 
+                        type="submit" 
+                        id="search-btn"
+                        class="px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <i class="fas fa-search mr-2"></i>
+                        <span id="search-btn-text">Search Inboxes</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Search Status -->
+        <div id="search-status" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Search Progress</h3>
+                <button onclick="location.reload()" class="text-sm text-gray-600 hover:text-gray-900">
+                    <i class="fas fa-redo mr-1"></i>Refresh
+                </button>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                <div id="progress-bar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+            </div>
+            <p id="progress-text" class="text-sm text-gray-600 text-center">Searching accounts...</p>
+        </div>
+
+        <!-- Results -->
+        <div id="results-section" class="hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                    <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                    Search Results
+                </h3>
+                <div id="results-list" class="space-y-3"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let searchActive = false;
+        let currentSearchId = null;
+        let pollInterval = null;
+
+        async function loadAccounts() {
+            try {
+                const response = await fetch('/api/accounts');
+                const data = await response.json();
+                const accountCountEl = document.getElementById('account-count');
+                
+                if (data.accounts && data.accounts.length > 0) {
+                    accountCountEl.textContent = `${data.accounts.length} accounts configured`;
+                } else {
+                    accountCountEl.textContent = 'No accounts configured';
+                }
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                document.getElementById('account-count').textContent = 'Error loading accounts';
+            }
+        }
+
+        async function handleSearch(event) {
+            event.preventDefault();
+
+            const senderEmail = document.getElementById('sender-email').value;
+            const subject = document.getElementById('subject').value;
+
+            if (!senderEmail && !subject) {
+                alert('Please fill in either sender email or subject');
+                return;
+            }
+
+            resetSearchUI();
+
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...(senderEmail && { sender_email: senderEmail }),
+                        ...(subject && { subject: subject })
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                currentSearchId = data.search_id;
+                searchActive = true;
+
+                document.getElementById('search-status').classList.remove('hidden');
+                document.getElementById('search-form').classList.add('opacity-50', 'pointer-events-none');
+                document.getElementById('search-btn').disabled = true;
+
+                pollInterval = setInterval(pollSearchStatus, 500);
+
+            } catch (error) {
+                console.error('Error starting search:', error);
+                alert('Error starting search: ' + error.message);
+            }
+        }
+
+        async function pollSearchStatus() {
+            if (!currentSearchId) return;
+
+            try {
+                const response = await fetch(`/api/search/${currentSearchId}/status`);
+                const data = await response.json();
+
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                const percentage = (data.completed / data.total) * 100;
+
+                progressBar.style.width = percentage + '%';
+                progressText.textContent = `Searched ${data.completed} of ${data.total} accounts...`;
+
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    displayResults(data.results);
+                    searchActive = false;
+                }
+            } catch (error) {
+                console.error('Error polling search status:', error);
+            }
+        }
+
+        function displayResults(results) {
+            document.getElementById('search-status').classList.add('hidden');
+            document.getElementById('search-form').classList.remove('opacity-50', 'pointer-events-none');
+            document.getElementById('search-btn').disabled = false;
+            document.getElementById('search-btn-text').textContent = 'Search Inboxes';
+
+            const resultsSection = document.getElementById('results-section');
+            const resultsList = document.getElementById('results-list');
+
+            if (!results || results.length === 0) {
+                resultsList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-3"></i>
+                        <p>No emails found matching your search criteria</p>
+                    </div>
+                `;
+            } else {
+                resultsList.innerHTML = results.map((result, index) => `
+                    <div class="result-row border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+                                        ${result.provider}
+                                    </span>
+                                    <span class="px-3 py-1 folder-${result.folder} text-white rounded-full text-sm font-medium">
+                                        <i class="fas fa-folder mr-1"></i>${result.folder}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-700 mb-1"><strong>Account:</strong> ${result.account_email}</p>
+                                <p class="text-sm text-gray-600"><i class="fas fa-clock mr-1"></i>${result.time_received}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs text-gray-500">Result #${index + 1}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            resultsSection.classList.remove('hidden');
+        }
+
+        function resetSearchUI() {
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('search-status').classList.add('hidden');
+        }
+
+        // Initialize
+        document.getElementById('search-form').addEventListener('submit', handleSearch);
+        loadAccounts();
+    </script>
+</body>
+</html>

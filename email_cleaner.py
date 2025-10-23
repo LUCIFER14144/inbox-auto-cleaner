@@ -54,6 +54,8 @@ class EmailCleaner:
         email_addr = account['email']
         password = account['password']
         
+        logger.info(f"Starting cleanup for account: {email_addr}")
+        
         # Determine IMAP server
         if 'yahoo' in email_addr.lower():
             imap_server = 'imap.mail.yahoo.com'
@@ -65,21 +67,28 @@ class EmailCleaner:
             logger.warning(f"Unknown email provider for {email_addr}")
             return
         
+        connection = None
         try:
             # Connect to IMAP server
+            logger.info(f"Connecting to {imap_server} for {email_addr}...")
             connection = imapclient.IMAPClient(imap_server, ssl=True)
             connection.login(email_addr, password)
             
-            logger.info(f"Connected to {email_addr}")
+            logger.info(f"Successfully connected and logged in to {email_addr}")
             
             # Get all folders
-            folders = connection.list_folders()
-            logger.info(f"Found {len(folders)} folders in {email_addr}")
+            try:
+                folders = connection.list_folders()
+                logger.info(f"Found {len(folders)} folders in {email_addr}")
+            except Exception as e:
+                logger.error(f"Error listing folders: {str(e)}")
+                return
             
             total_deleted = 0
             
             for folder_info in folders:
                 folder_name = folder_info[2]
+                logger.info(f"Processing folder: {folder_name}")
                 try:
                     deleted = await self._clean_folder(
                         connection, email_addr, folder_name, cutoff_time
@@ -89,15 +98,21 @@ class EmailCleaner:
                     logger.error(f"Error cleaning folder {folder_name} in {email_addr}: {str(e)}")
             
             logger.info(f"Total emails processed in {email_addr}: {total_deleted}")
-            connection.logout()
             
         except Exception as e:
             logger.error(f"Failed to connect to {email_addr}: {str(e)}")
+        finally:
+            if connection:
+                try:
+                    connection.logout()
+                    logger.info(f"Logged out from {email_addr}")
+                except:
+                    pass
     
     async def _clean_folder(self, connection, email_addr: str, folder_name: str, cutoff_time: datetime):
         """Clean emails from a specific folder"""
         try:
-            connection.select_folder(folder_name)
+            connection.select_folder(folder_name, readonly=False)
             logger.info(f"Cleaning folder: {folder_name} in {email_addr}")
             
             # Search for all emails
@@ -107,7 +122,9 @@ class EmailCleaner:
                 logger.info(f"No emails found in {folder_name}")
                 return 0
             
+            logger.info(f"Found {len(messages)} total emails in {folder_name}")
             deleted_count = 0
+            messages_to_delete = []
             
             for msg_id in messages:
                 try:
@@ -120,11 +137,15 @@ class EmailCleaner:
                     # Get email date
                     date_str = email_message.get('Date')
                     if date_str:
-                        email_date = email.utils.parsedate_to_datetime(date_str)
+                        try:
+                            email_date = email.utils.parsedate_to_datetime(date_str)
+                            email_date = email_date.replace(tzinfo=None)
+                        except:
+                            logger.warning(f"Could not parse date: {date_str}")
+                            email_date = datetime.now()
                         
                         # Check if email is older than cutoff
-                        if email_date.replace(tzinfo=None) < cutoff_time:
-                            
+                        if email_date < cutoff_time:
                             subject = email_message.get('Subject', 'No Subject')
                             sender = email_message.get('From', 'Unknown Sender')
                             
@@ -143,19 +164,25 @@ class EmailCleaner:
                             self.deletion_log.append(deletion_info)
                             
                             if self.dry_run:
-                                logger.info(f"[DRY RUN] Would delete: {subject} from {sender}")
+                                logger.info(f"[DRY RUN] Would delete: {subject} from {sender} (Date: {email_date})")
                             else:
-                                # Actually delete the email
-                                connection.delete_messages([msg_id])
-                                logger.warning(f"DELETED: {subject} from {sender}")
+                                messages_to_delete.append(msg_id)
+                                logger.warning(f"WILL DELETE: {subject} from {sender} (Date: {email_date})")
                             
                             deleted_count += 1
                 
                 except Exception as e:
                     logger.error(f"Error processing message {msg_id}: {str(e)}")
             
-            if not self.dry_run and deleted_count > 0:
-                connection.expunge()  # Permanently remove deleted messages
+            # Delete messages after processing all
+            if not self.dry_run and messages_to_delete:
+                try:
+                    logger.warning(f"Deleting {len(messages_to_delete)} messages from {folder_name}...")
+                    connection.delete_messages(messages_to_delete)
+                    connection.expunge()  # Permanently remove deleted messages
+                    logger.warning(f"Successfully deleted {len(messages_to_delete)} messages from {folder_name}")
+                except Exception as e:
+                    logger.error(f"Error deleting messages: {str(e)}")
                 
             logger.info(f"Processed {deleted_count} emails in {folder_name}")
             return deleted_count
